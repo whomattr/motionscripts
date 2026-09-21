@@ -1,11 +1,10 @@
-"""motionScripts web app - paste link in browser -> mp3 (yt-dlp -t mp3) -> transcript -> JSON."""
+"""motionScripts - paste link in browser → mp3 (yt-dlp -t mp3) → transcript → JSON."""
 import json
 import os
 import queue
 import subprocess
 import sys
 import threading
-import time
 import uuid
 from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -15,7 +14,7 @@ from urllib.parse import urlparse
 BASE_DIR = Path(__file__).resolve().parent
 DOWNLOADS_DIR = BASE_DIR / "downloads"
 JSON_FILE = BASE_DIR / "transcripts.json"
-INDEX_FILE = BASE_DIR / "index.html"
+DIST_DIR = BASE_DIR / "viewer" / "dist"
 
 MODEL_NAME = os.getenv("WHISPER_MODEL", "base")
 BEAM_SIZE = int(os.getenv("WHISPER_BEAM", "1"))
@@ -30,6 +29,20 @@ if not JSON_FILE.exists():
 JOBS: dict = {}
 JOB_QUEUE: "queue.Queue[str]" = queue.Queue()
 JSON_LOCK = threading.Lock()
+
+# MIME types for static serving
+MIME = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".mp3": "audio/mpeg",
+}
 
 
 def set_job(job_id: str, **patch):
@@ -106,7 +119,7 @@ def read_transcripts() -> list:
             data = json.loads(JSON_FILE.read_text(encoding="utf-8"))
             if not isinstance(data, list):
                 return []
-            for e in data:  # normalize old windows paths for web serving
+            for e in data:
                 if isinstance(e.get("audio_file"), str):
                     e["audio_file"] = e["audio_file"].replace("\\", "/")
             return data
@@ -153,9 +166,6 @@ def worker_loop():
 
 
 class AppHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *a, **kw):
-        super().__init__(*a, directory=str(BASE_DIR), **kw)
-
     def log_message(self, fmt, *args):
         sys.stdout.write("[web] " + fmt % args + "\n")
 
@@ -168,16 +178,46 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _serve_file(self, file_path: Path, code=200):
+        if not file_path.is_file():
+            self.send_error(404)
+            return
+        ext = file_path.suffix.lower()
+        ct = MIME.get(ext, "application/octet-stream")
+        data = file_path.read_bytes()
+        self.send_response(code)
+        self.send_header("Content-Type", ct)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self):
         path = urlparse(self.path).path
+
+        # API routes
         if path == "/api/transcripts":
             return self._send_json(read_transcripts())
         if path == "/api/jobs":
             jobs = sorted(JOBS.values(), key=lambda j: j["created_at"], reverse=True)
             return self._send_json(jobs)
+
+        # Downloads (audio files)
+        if path.startswith("/downloads/"):
+            rel = path[len("/downloads/"):]
+            file_path = DOWNLOADS_DIR / rel
+            return self._serve_file(file_path)
+
+        # Static files from viewer/dist
         if path == "/":
-            self.path = "/index.html"
-        return super().do_GET()
+            file_path = DIST_DIR / "index.html"
+        else:
+            file_path = DIST_DIR / path.lstrip("/")
+
+        # SPA fallback: if file doesn't exist, serve index.html (for client-side routing)
+        if not file_path.is_file():
+            file_path = DIST_DIR / "index.html"
+
+        self._serve_file(file_path)
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -202,7 +242,24 @@ class AppHandler(SimpleHTTPRequestHandler):
         return self._send_json(JOBS[job_id], 202)
 
 
+def ensure_dist():
+    """Build the Preact app if viewer/dist doesn't exist."""
+    if (DIST_DIR / "index.html").exists():
+        print(f"UI built: {DIST_DIR}")
+        return
+    print("Building UI (first run)…")
+    subprocess.run(
+        [str(BASE_DIR / "viewer" / "node_modules" / ".bin" / "vite" if os.name != "nt" else ""), "build"],
+        cwd=str(BASE_DIR / "viewer"),
+        shell=(os.name == "nt"),
+        check=True,
+    )
+    if not (DIST_DIR / "index.html").exists():
+        print(f"WARNING: UI build missing at {DIST_DIR}. Run: cd viewer && npm run build")
+
+
 def main():
+    ensure_dist()
     threading.Thread(target=worker_loop, daemon=True, name="worker").start()
     port = PORT
     httpd = None
@@ -214,8 +271,10 @@ def main():
             port += 1
     assert httpd is not None
     url = f"http://localhost:{port}/"
-    print(f"motionScripts web live at {url}")
-    print(f"transcripts: {JSON_FILE}  model={MODEL_NAME} beam={BEAM_SIZE}")
+    print(f"\nmotionScripts live at {url}")
+    print(f"UI:    {DIST_DIR}")
+    print(f"Data:  {JSON_FILE}")
+    print(f"Model: faster-whisper:{MODEL_NAME} beam={BEAM_SIZE}\n")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
