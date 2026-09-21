@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
 DOWNLOADS_DIR = BASE_DIR / "downloads"
@@ -201,11 +201,15 @@ class AppHandler(SimpleHTTPRequestHandler):
             jobs = sorted(JOBS.values(), key=lambda j: j["created_at"], reverse=True)
             return self._send_json(jobs)
 
-        # Downloads (audio files)
+        # Downloads (audio files) — unquote handles %20 etc, normalize \ from old entries
         if path.startswith("/downloads/"):
-            rel = path[len("/downloads/"):]
-            file_path = DOWNLOADS_DIR / rel
-            return self._serve_file(file_path)
+            rel = unquote(path[len("/downloads/"):]).replace("\\", "/")
+            # guard against traversal
+            safe = (DOWNLOADS_DIR / rel).resolve()
+            if not str(safe).startswith(str(DOWNLOADS_DIR.resolve())):
+                self.send_error(403)
+                return
+            return self._serve_file(safe)
 
         # Static files from viewer/dist
         if path == "/":

@@ -44,13 +44,13 @@ function Queue({ jobs }) {
   )
 }
 
-function Player({ src, segments }) {
+function Player({ src, segments, onSegActive }) {
   const audioRef = useRef(null)
   const trackRef = useRef(null)
   const fillRef = useRef(null)
   const knobRef = useRef(null)
   const timeRef = useRef(null)
-  const playing = useRef(false)
+  const [isPlaying, setIsPlaying] = useState(false)
   const scrubbing = useRef(false)
   const raf = useRef(null)
 
@@ -82,13 +82,13 @@ function Player({ src, segments }) {
     if (fillRef.current) fillRef.current.style.transform = `scaleX(${Math.min(1, frac)})`
     if (knobRef.current) knobRef.current.style.left = `${Math.min(100, frac * 100)}%`
     if (timeRef.current) timeRef.current.textContent = `${fmt(cur)} / ${fmt(dur)}`
-    if (segments?.length) {
+    if (segments?.length && onSegActive) {
       let idx = 0
       for (let i = 0; i < segments.length; i++) {
         const next = segments[i + 1]?.start ?? Infinity
         if (cur >= segments[i].start && cur < next) { idx = i; break }
       }
-      document.dispatchEvent(new CustomEvent('motion-seg-active', { detail: { index: idx } }))
+      onSegActive(idx)
     }
     if (!scrubbing.current) raf.current = requestAnimationFrame(paint)
   }
@@ -96,14 +96,16 @@ function Player({ src, segments }) {
   useEffect(() => {
     const a = audioRef.current
     if (!a) return
-    const onPlay = () => { playing.current = true; paint() }
-    const onPause = () => { playing.current = false }
+    const onPlay = () => { setIsPlaying(true); paint() }
+    const onPause = () => setIsPlaying(false)
     const onMeta = () => paint()
+    const onError = () => console.error('audio load error', a.error, src)
     a.addEventListener('play', onPlay)
     a.addEventListener('pause', onPause)
     a.addEventListener('loadedmetadata', onMeta)
-    return () => { a.removeEventListener('play', onPlay); a.removeEventListener('pause', onPause); a.removeEventListener('loadedmetadata', onMeta); cancelAnimationFrame(raf.current) }
-  }, [])
+    a.addEventListener('error', onError)
+    return () => { a.removeEventListener('play', onPlay); a.removeEventListener('pause', onPause); a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('error', onError); cancelAnimationFrame(raf.current) }
+  }, [src])
 
   function seekFromEvent(e) {
     const track = trackRef.current
@@ -140,16 +142,17 @@ function Player({ src, segments }) {
   }
 
   return (
-    <div class="flex items-center gap-3 my-3">
+    <div class="flex items-center gap-3 my-3 rounded-2xl border border-neutral-200/80 bg-neutral-50 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
       <audio ref={audioRef} preload="metadata" src={src} />
       <button
         onClick={togglePlay}
-        class="w-11 h-11 rounded-full bg-neutral-900 text-white shrink-0 grid place-items-center active:scale-[0.94] transition-transform"
+        aria-label={isPlaying ? 'Pause' : 'Play'}
+        class="w-10 h-10 rounded-full bg-neutral-900 text-white shrink-0 grid place-items-center shadow-sm ring-1 ring-neutral-900/10 hover:bg-neutral-700 active:scale-[0.94] transition-all"
       >
         <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-          {playing.current
-            ? <><rect x="3" y="2.5" width="3.4" height="11" /><rect x="9.1" y="2.5" width="3.4" height="11" /></>
-            : <path d="M4 2.5v11l9-5.5z" />
+          {isPlaying
+            ? <><rect x="3" y="2.5" width="3.4" height="11" rx="1" /><rect x="9.1" y="2.5" width="3.4" height="11" rx="1" /></>
+            : <path d="M4.5 2.8v10.4c0 .5.6.9 1 .6l7.6-5.2c.4-.3.4-.9 0-1.2L5.5 2.2c-.4-.3-1 0-1 .6z" />
           }
         </svg>
       </button>
@@ -162,19 +165,18 @@ function Player({ src, segments }) {
         onPointerCancel={onPointerUp}
         role="slider" aria-label="Seek" tabindex="0"
       >
-        <div class="relative h-1 w-full rounded-full bg-neutral-200 overflow-hidden">
+        <div class="relative h-1.5 w-full rounded-full bg-neutral-200/80 overflow-hidden group-hover:h-2 transition-all">
           <div ref={fillRef} class="absolute inset-0 bg-neutral-900 rounded-full origin-left will-change-[transform]" style={{ transform: 'scaleX(0)' }} />
         </div>
-        <div ref={knobRef} class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-neutral-900 -translate-x-1/2 pointer-events-none scale-[0.6] group-hover:scale-100 transition-transform" />
+        <div ref={knobRef} class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-[3px] border-neutral-900 shadow -translate-x-1/2 pointer-events-none scale-[0.6] group-hover:scale-100 transition-transform" />
       </div>
-      <span ref={timeRef} class="text-[0.75rem] text-neutral-400 font-[tabular-nums] whitespace-nowrap w-[90px] text-right">0:00.0 / 0:00.0</span>
+      <span ref={timeRef} class="text-[11px] leading-none text-neutral-500 bg-white border border-neutral-200/80 rounded-md px-2 py-1.5 font-mono tabular-nums whitespace-nowrap">0:00.0 / 0:00.0</span>
     </div>
   )
 }
 
-function TranscriptCard({ e, index, isSelected, onSelect }) {
+function TranscriptCard({ e, index, isSelected, onSelect, onSegActive }) {
   const [copied, setCopied] = useState(false)
-  const [expanded, setExpanded] = useState(false)
 
   const handleCopy = async () => {
     try {
@@ -183,13 +185,6 @@ function TranscriptCard({ e, index, isSelected, onSelect }) {
       try { navigator.vibrate?.(10) } catch {}
       setTimeout(() => setCopied(false), 1200)
     } catch {}
-  }
-
-  const handleSegmentClick = (time) => {
-    const card = document.querySelector(`[data-card="${index}"]`)
-    const audio = card?.querySelector('audio')
-    if (audio?._seek) audio._seek(time)
-    else if (audio) { audio.currentTime = time; audio.play().catch(() => {}) }
   }
 
   return (
@@ -205,11 +200,11 @@ function TranscriptCard({ e, index, isSelected, onSelect }) {
       <a href={e.url} target="_blank" rel="noopener" class="text-[0.8125rem] break-all text-neutral-900 no-underline hover:underline" onClick={ev => ev.stopPropagation()}>
         {e.url}
       </a>
-      <div class="text-[0.75rem] text-neutral-400 mt-1 font-[tabular-nums]">
+      <div class="text-[0.75rem] text-neutral-400 mt-1 font-sans tabular-nums">
         {e.language || '?'} · {e.duration ?? '?'}s · {e.model || ''} · {(e.transcribed_at || '').slice(0, 16).replace('T', ' ')}
       </div>
 
-      {e.audio_file && <Player src={`/${e.audio_file}`} segments={e.segments} />}
+      {e.audio_file && <Player src={`/${String(e.audio_file).replace(/\\/g, '/')}`} segments={e.segments} onSegActive={isSelected ? onSegActive : undefined} />}
 
       <p class="text-[0.9375rem] leading-relaxed whitespace-pre-wrap mt-3">{e.full_text || ''}</p>
 
@@ -222,28 +217,6 @@ function TranscriptCard({ e, index, isSelected, onSelect }) {
               : 'border-neutral-200 bg-white text-neutral-900 hover:border-neutral-900'
           }`}
         >{copied ? 'Copied ✓' : 'Copy'}</button>
-      </div>
-
-      <button
-        onClick={(ev) => { ev.stopPropagation(); setExpanded(!expanded) }}
-        class="mt-3 text-[0.8125rem] text-neutral-400 hover:text-neutral-900 transition-colors flex items-center gap-1.5"
-      >
-        <span class={`inline-block text-[0.625rem] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}>▶</span>
-        Segments ({(e.segments || []).length})
-      </button>
-
-      <div class={`grid transition-[grid-template-rows,opacity] duration-200 ${expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-        <div class="overflow-hidden">
-          {(e.segments || []).map((s, si) => (
-            <div key={si} class="flex gap-2.5 py-2.5 border-t border-neutral-100 first:border-t-0 items-baseline">
-              <button
-                onClick={(ev) => { ev.stopPropagation(); handleSegmentClick(s.start) }}
-                class="shrink-0 bg-neutral-100 hover:bg-neutral-900 hover:text-white rounded-full px-2.5 py-0.5 text-[0.75rem] font-[tabular-nums] transition-colors"
-              >{fmt(s.start)}</button>
-              <p class="text-[0.875rem] leading-snug m-0">{s.text}</p>
-            </div>
-          ))}
-        </div>
       </div>
     </article>
   )
@@ -277,19 +250,19 @@ function SegmentsPanel({ transcript, activeSegIdx, onClose }) {
           <div
             key={i}
             ref={i === activeSegIdx ? activeRef : null}
-            class={`flex gap-2.5 py-2.5 border-t border-neutral-100 first:border-t-0 items-baseline transition-colors duration-200 ${
-              i === activeSegIdx ? 'bg-neutral-100/80 -mx-2 px-2 rounded-lg' : ''
+            class={`flex gap-3 px-2.5 py-2.5 rounded-xl items-baseline transition-all duration-200 ${
+              i === activeSegIdx ? 'bg-neutral-900/[0.04] ring-1 ring-neutral-900/10' : 'hover:bg-neutral-100/80'
             }`}
           >
             <button
               onClick={() => handleSeek(s.start)}
-              class={`shrink-0 rounded-full px-2.5 py-0.5 text-[0.75rem] font-[tabular-nums] transition-colors ${
+              class={`shrink-0 rounded-md border px-2 py-1 text-[11px] font-mono font-medium tabular-nums active:scale-[0.96] transition-all ${
                 i === activeSegIdx
-                  ? 'bg-neutral-900 text-white'
-                  : 'bg-neutral-100 hover:bg-neutral-900 hover:text-white'
+                  ? 'bg-neutral-900 text-white border-neutral-900'
+                  : 'bg-neutral-100 text-neutral-600 border-neutral-200/60 hover:bg-neutral-900 hover:text-white hover:border-neutral-900'
               }`}
             >{fmt(s.start)}</button>
-            <p class="text-[0.875rem] leading-snug m-0">{s.text}</p>
+            <p class="text-[0.875rem] leading-snug m-0 text-neutral-700">{s.text}</p>
           </div>
         ))}
       </div>
@@ -357,13 +330,14 @@ export default function App() {
           />
           {!order.length
             ? <p class="text-center text-neutral-400 text-[0.875rem] py-16">No transcripts yet.</p>
-            : order.map(i => (
+              : order.map(i => (
                 <TranscriptCard
                   key={i}
                   e={data[i]}
                   index={i}
                   isSelected={selectedIdx === i}
-                  onSelect={setSelectedIdx}
+                  onSelect={(idx) => { setSelectedIdx(idx); setActiveSegIdx(0) }}
+                  onSegActive={setActiveSegIdx}
                 />
               ))
           }
