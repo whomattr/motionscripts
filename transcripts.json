@@ -1,0 +1,116 @@
+[
+  {
+    "url": "https://www.instagram.com/p/DRhIIp7jCea/",
+    "audio_file": "downloads\\Video by madebyveduboi [DRhIIp7jCea].mp3",
+    "model": "faster-whisper:small",
+    "transcribed_at": "2026-09-21T16:50:50.898401+00:00",
+    "language": "en",
+    "language_probability": 0.9944,
+    "duration": 29.19,
+    "segments": [
+      {
+        "start": 0.69,
+        "end": 5.69,
+        "text": "Payment holds, account bans, no control, no data, no support."
+      },
+      {
+        "start": 7.19,
+        "end": 9.69,
+        "text": "Aptics partners with WAP to build a solution."
+      },
+      {
+        "start": 9.69,
+        "end": 12.69,
+        "text": "The future of e-commerce processing is here."
+      },
+      {
+        "start": 12.69,
+        "end": 14.69,
+        "text": "Get paid in one to two business days."
+      },
+      {
+        "start": 14.69,
+        "end": 16.69,
+        "text": "Pay the lowest fees in the industry."
+      },
+      {
+        "start": 16.69,
+        "end": 18.69,
+        "text": "Superior approval rates."
+      },
+      {
+        "start": 18.69,
+        "end": 20.69,
+        "text": "Zero account shutdowns."
+      },
+      {
+        "start": 20.69,
+        "end": 22.69,
+        "text": "But wait, there's more."
+      },
+      {
+        "start": 23.69,
+        "end": 25.69,
+        "text": "Are you ready to make the switch?"
+      },
+      {
+        "start": 25.69,
+        "end": 27.69,
+        "text": "And this is just the beginning."
+      },
+      {
+        "start": 27.69,
+        "end": 29.69,
+        "text": "Watch today at aptics.com"
+      }
+    ],
+    "full_text": "Payment holds, account bans, no control, no data, no support. Aptics partners with WAP to build a solution. The future of e-commerce processing is here. Get paid in one to two business days. Pay the lowest fees in the industry. Superior approval rates. Zero account shutdowns. But wait, there's more. Are you ready to make the switch? And this is just the beginning. Watch today at aptics.com"
+  },
+  {
+    "url": "https://www.instagram.com/p/DV6Cg5Ck0MH/",
+    "audio_file": "downloads\\Video by madebyveduboi [DV6Cg5Ck0MH].mp3",
+    "model": "faster-whisper:small",
+    "transcribed_at": "2026-09-21T16:52:16.151380+00:00",
+    "language": "en",
+    "language_probability": 0.9963,
+    "duration": 37.04,
+    "segments": [
+      {
+        "start": 1.39,
+        "end": 5.95,
+        "text": "This is our stuff chasing numbers they don't trust. That's why Uplink exists."
+      },
+      {
+        "start": 6.67,
+        "end": 11.47,
+        "text": "Uplink isn't just a bookkeeper. It's a system that runs your finances."
+      },
+      {
+        "start": 11.91,
+        "end": 15.19,
+        "text": "We connect your accounts and build a clean foundation from day one."
+      },
+      {
+        "start": 16.35,
+        "end": 19.51,
+        "text": "Transactions are tracked, categorized, and reviewed automatically."
+      },
+      {
+        "start": 20.19,
+        "end": 27.47,
+        "text": "You get real financials you can actually understand, giving you the power to make fast and more effective decisions to grow your business."
+      },
+      {
+        "start": 27.95,
+        "end": 31.52,
+        "text": "No more guessing, no more messy books."
+      },
+      {
+        "start": 31.52,
+        "end": 34.64,
+        "text": "Uplink. Books done, stress gone."
+      }
+    ],
+    "full_text": "This is our stuff chasing numbers they don't trust. That's why Uplink exists. Uplink isn't just a bookkeeper. It's a system that runs your finances. We connect your accounts and build a clean foundation from day one. Transactions are tracked, categorized, and reviewed automatically. You get real financials you can actually understand, giving you the power to make fast and more effective decisions to grow your business. No more guessing, no more messy books. Uplink. Books done, stress gone."
+  }
+]
